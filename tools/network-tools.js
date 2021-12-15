@@ -80,21 +80,21 @@ async function invokeTransaction(username, orgName, orgNumber, args, res)
     // let channelName = process.env.channelName;
     // let chaincodeName = process.env.chaincodeName;
 
-            
+
     let shellResult = shell.exec(`${bashFilesDir}/createCar.sh ${username} ${orgName.toLowerCase()} ${orgNumber} \
-        ${args[0]} ${args[1]} ${args[2]} ${args[3]} ${args[4]}`, {silent: true});
-
-    if (shellResult.code !== 0) {
-        let shellError = shellResult.stderr;
-        console.log(colors.bgRed("Error in createCar.sh"));
-        console.log(colors.red(shellError));
-        return res.status(500).send(`Error in adding asset with key: ${args[0]}`);
-    }
-
-    else {
-        console.log(colors.green(`* Successfully added the asset with key: ${args[0]}`));
-        return res.send(`Successfully added the asset with key: ${args[0]}`);
-    }
+    ${args[0]} ${args[1]} ${args[2]} ${args[3]} ${args[4]}`, {silent: true, async: true}, (code, stdout, stderr) =>
+    {
+        if (code !== 0) {
+            console.log(colors.bgRed("Error in createCar.sh"));
+            console.log(colors.red(stderr));
+            return res.status(500).send(`Error in adding asset with key: ${args[0]}`);
+        }
+    
+        else {
+            console.log(colors.green(`* Successfully added the asset with key: ${args[0]}`));
+            return res.send(`Successfully added the asset with key: ${args[0]}`);
+        }
+    });
 }
 
 
