@@ -15,7 +15,7 @@ async function getUserCertificate(certificate_file)
         });
 
     }).catch(err => {
-       console.log(colors.bgRed(`Error in reading user's certificate file in path: "${path}"`));
+       console.log(colors.bgRed(`Error in reading user's certificate file in path: "${certificate_file}"`));
        console.log(colors.red(err));
     });
 
