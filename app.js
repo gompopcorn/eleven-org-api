@@ -7,8 +7,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 
-// tools & paths
-const tools = require(path.join(process.cwd(), 'tools/general-tools.js'));
+// tools
+const networkTools = require(path.join(process.cwd(), 'tools/network-tools.js'));
 
 const PORT = process.env.PORT;
 
@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));  // parse application/x-www-for
 app.post('/users', (req, res) => 
 {
     let username = req.body.username;
-    let org = req.body.args;
+    let org = req.body.orgName;
 
     if (!username || !org) {
         return res.status(400).send("Username and org are required.");
@@ -39,14 +39,14 @@ app.post('/users', (req, res) =>
     }
 
     // register and enroll the user
-    return tools.registerUser(username, orgName, res);
+    return networkTools.registerUser(username, orgName, res);
 });
 
 
-app.get('/addAsset', (req, res) => 
+app.post('/addAsset', (req, res) => 
 {
     let username = req.body.username;
-    let org = req.body.org;
+    let org = req.body.orgName;
     let args = req.body.args;
 
     if (!username || !org || !args) {
@@ -60,7 +60,7 @@ app.get('/addAsset', (req, res) =>
         return res.status(400).send("Org number can only be between 1 and 10")
     }
 
-    return invokeTransaction(username, orgName, orgNumber, args, res);
+    return networkTools.invokeTransaction(username, orgName, orgNumber, args, res);
 });
 
 

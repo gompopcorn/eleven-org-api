@@ -38,8 +38,7 @@ orgConfigFile="$org_dir/msp/config.yaml"
 
 
 # export fabric paths
-# export PATH=$fabric_samples_dir/bin:$test_network_dir:$PATH
-export PATH=$fabric_samples_dir/bin
+export PATH=$fabric_samples_dir/bin:$PATH
 export FABRIC_CFG_PATH=$fabric_samples_dir/config/
 export FABRIC_CA_CLIENT_HOME=$org_dir
 

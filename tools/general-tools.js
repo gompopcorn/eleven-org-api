@@ -1,133 +1,129 @@
 // node_modules
-const { Wallets } = require('fabric-network');
-const shell = require('shelljs');
 const colors = require('colors');
+const fs = require('fs');
 const path = require('path');
 
-// tools & paths
-const bashFilesDir = path.join(process.cwd(), 'bash-files');
 
 
-// register and enroll the user
-async function registerUser(username, userOrg, res)
+// get user's certificate
+async function getUserCertificate(certificate_file)
 {
-    const walletPath = await getWalletPath(userOrg)
-    const wallet = await Wallets.newFileSystemWallet(walletPath);
-
-    // *****************************************************
-    //                check user existence
-    // *****************************************************
-
-    const userIdentity = await wallet.get(username);
-    if (userIdentity) {
-        console.log(`An identity for the user ${username} already exists in the wallet of ${userOrg}`);
-        return res.status(409).send({
-            success: false,
-            message: `${username} already exists in ${userOrg}`,
+    let certificate = await new Promise((resolve, reject) => {
+        fs.readFile(certificate_file, 'utf8', async (err, userCertificate) => {
+            if (err) return reject(err);
+            resolve(userCertificate);
         });
-    }
+
+    }).catch(err => {
+       console.log(colors.bgRed(`Error in reading user's certificate file in path: "${path}"`));
+       console.log(colors.red(err));
+    });
 
 
-    // *****************************************************
-    //             Register and Enroll the User
-    // *****************************************************
-
-    let orgName = userOrg.toLowerCase();
-    let orgNumber = orgName.match(/\d/g).join("");
+    return certificate;
+}
 
 
-    let shellResult = shell.exec(`${bashFilesDir}/userActions.sh ${username} ${orgName} ${orgNumber} client`, {silent: true});
+// get user's certificate pricateKey
+async function getUserPrivateKey(privateKey_path)
+{
+    let privateKeyFiles = await getListOfFilesAndDirs(privateKey_path);
+    let privateKeyFile = await getOldestFilebyDate(privateKey_path, privateKeyFiles);
 
-    if (shellResult.code !== 0) {
-        let shellError = shellResult.stderr;
-        console.log(colors.bgRed("Error in userActions.sh"));
-        console.log(colors.red(shellError));
-        return res.status(500).send("Error in registering/enrolling the user");
-    }
+    let privateKey = await new Promise((resolve, reject) => {
+        fs.readFile(`${privateKey_path}/${privateKeyFile}`, 'utf8', async (err, userPrivateKey) => {
+            if (err) return reject(err);
+            resolve(userPrivateKey);
+        });
 
-    let orgDir = getOrgDir(orgName);    // path of the org directory
+    }).catch(err => {
+       console.log(colors.bgRed(`Error in reading user's privateKey file in path: "${privateKey_path}/${privateKeyFile}"`));
+       console.log(colors.red(err));
+    });
 
-    let certificate_file = path.join(orgDir, `users/${username}@${orgName}.example.com/msp/signcerts/cert.pem`);
-    let privateKey_path = path.join(orgDir, `users/${username}@${orgName}.example.com/msp/keystore`);
 
-    let certificate = await getUserCertificate(certificate_file);
-    let privateKey = await getUserPrivateKey(privateKey_path);
+    return privateKey;
+}
 
-    let x509Identity = {
-        credentials: { certificate, privateKey },
-        mspId: `${orgName}MSP`,
-        type: 'X.509',
-    };
+
+// get the list of the files/directories in a path
+async function getListOfFilesAndDirs(path) 
+{
+    let filesList = await new Promise((resolve, reject) => {
+        fs.readdir(path, 'utf8', async (err, files) => {
+            if (err) return reject(err);
+            resolve(files);
+        });
+
+    }).catch(err => {
+       console.log(colors.bgRed(`Error in getting files list of the path: "${path}"`));
+       console.log(colors.red(err));
+    });
     
 
-    // import the identity into the wallet
-    await wallet.put(username, x509Identity);
-    console.log(colors.green(`Successfully registered and enrolled user '${username}' and imported into the wallet.`));
-
-    return res.send({
-        success: true,
-        message: `${username} enrolled Successfully in ${orgName}`,
-    })
+    return filesList;
 }
 
 
-// invoke transaction
-async function invokeTransaction(username, orgName, orgNumber, args, res)
+// get the last created privateKey file
+async function getOldestFilebyDate(path, files)
 {
-    console.log(colors.blue(`*** Chaincode invoke for adding asset with key: ${args[0]} ***`));
+    let oldestFileInfo = {date: 0, name: ""};
+    let errorFlag = false;
 
-    // let channelName = process.env.channelName;
-    // let chaincodeName = process.env.chaincodeName;
+    for (let i = 0; i < files.length; i++)
+    {
+        let fileStat = await new Promise((resolve, reject) =>
+        {
+            fs.stat(`${path}/${files[i]}`, "utf8", (err, fileStat) => {
+                if (err) return reject(err);
+                if (fileStat.isFile()) resolve(fileStat);
+                else resolve();
+            });
 
-            
-    let shellResult = shell.exec(`${bashFilesDir}/createCar.sh ${username} ${orgName.toLowerCase()} ${orgNumber} \
-        ${args[0]} ${args[1]} ${args[2]} ${args[3]} ${args[4]}`, {silent: true});
+        }).catch(err => {
+            errorFlag = true;
+            console.log(colors.bgRed(`Error in getting stats of the file: '${files[i]}'`));
+            console.log(colors.red(err));
+        });
+        
 
-    if (shellResult.code !== 0) {
-        let shellError = shellResult.stderr;
-        console.log(colors.bgRed("Error in createCar.sh"));
-        console.log(colors.red(shellError));
-        return res.status(500).send(`Error in adding asset with key: ${args[0]}`);
+        if (errorFlag) break;
+
+        else if (fileStat.birthtimeMs > oldestFileInfo.date) {
+            oldestFileInfo.date = fileStat.birthtimeMs;
+            oldestFileInfo.name = files[i];
+        }
     }
+    
 
-    else {
-        console.log(colors.green(`* Successfully added the asset with key: ${args[0]}`));
-        return res.send(`Successfully added the asset with key: ${args[0]}`);
-    }
-}
-
-
-// check user existence
-async function checkUserExistence(username, orgName) 
-{
-    const walletPath = await getWalletPath(orgName)
-    const wallet = await Wallets.newFileSystemWallet(walletPath);
-
-    const userIdentity = await wallet.get(username);
-    if (userIdentity) return true;
+    if (!errorFlag) return oldestFileInfo.name;
     return false;
 }
 
 
 // get the path of the org's wallet
-async function getWalletPath(org) {
+function getWalletPath(org) {
     let orgNumber = org.match(/\d/g).join("");
     let walletPath = path.join(process.cwd(), `wallets/org${orgNumber}-wallet`);
     return walletPath;
 }
 
+
 // get the path of the org's wallet
-async function getOrgDir(orgName) {
-    let orgPath = path.join(process.cwd(), `../crypto-config/peerOrganizations/${orgName}.example.com`);
+function getOrgDir(orgName) {
+    let orgNumber = orgName.match(/\d/g).join("");
+    let orgPath = path.join(process.env.vms_dir, `vm${orgNumber}/crypto-config/peerOrganizations/${orgName}.example.com`);
     return orgPath;
 }
 
 
 
-
-
 module.exports = {
-    registerUser,
-    invokeTransaction,
-    checkUserExistence
+    getUserCertificate,
+    getUserPrivateKey,
+    getListOfFilesAndDirs,
+    getOldestFilebyDate,
+    getWalletPath,
+    getOrgDir
 }
